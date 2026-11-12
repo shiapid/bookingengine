@@ -29,6 +29,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Check staging activation and rollback
+        run: bash test/staging-deploy.test.sh
       - run: npm run build
 
   staging:
