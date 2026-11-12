@@ -14,9 +14,41 @@ body {
   color: var(--color-navy);
 }
 
-a:focus-visible {
+a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible {
   outline: 3px solid var(--color-action);
   outline-offset: 5px;
+}
+
+.auth-aside {
+  background: radial-gradient(ellipse at 85% 85%, #195bc0, transparent 65%), var(--color-navy);
+}
+
+.auth-title {
+  @apply text-2xl font-extrabold tracking-tight sm:text-3xl;
+}
+
+.auth-description {
+  @apply mt-3 mb-6 text-sm leading-6 text-slate-600;
+}
+
+.form-label {
+  @apply grid gap-2 text-sm font-extrabold text-navy;
+}
+
+.form-label input {
+  @apply min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-medium;
+}
+
+.form-error {
+  @apply rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900;
+}
+
+.form-success {
+  @apply rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900;
+}
+
+.primary-button {
+  @apply rounded-lg bg-navy px-4 py-3 text-sm font-extrabold text-white hover:bg-action disabled:opacity-60;
 }
 
 .brand-mark {

@@ -8,9 +8,12 @@ export default function Home() {
           </span>
           <p className="text-xl font-extrabold tracking-tight">SHIAP <span className="font-medium">Booking Engine</span></p>
         </div>
-        <a className="text-sm font-bold text-navy hover:underline" href="/api/health">
-          Status layanan <span aria-hidden="true">↗</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-4">
+          <a className="text-sm font-bold text-navy hover:underline" href="/api/health">
+            Status layanan <span aria-hidden="true">↗</span>
+          </a>
+          <a className="rounded-lg bg-navy px-3 py-2 text-sm font-bold text-white hover:bg-action" href="/login">Masuk mitra</a>
+        </div>
       </header>
 
       <section className="grid items-center gap-12 py-16 lg:grid-cols-[1fr_0.9fr] lg:py-28">

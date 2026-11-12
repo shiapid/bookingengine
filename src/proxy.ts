@@ -1,12 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "@/lib/supabase/env";
+import { sessionCookies } from "@/lib/auth/cookies";
 
 export async function proxy(request: NextRequest) {
-  const { url, publishableKey } = getSupabaseConfig();
   let response = NextResponse.next({ request });
+  response.headers.set("Cache-Control", "private, no-store");
 
+  if (request.nextUrl.pathname !== "/login" && !request.nextUrl.pathname.startsWith("/workspace")) {
+    return response;
+  }
+
+  const { url, publishableKey } = getSupabaseConfig();
   const supabase = createServerClient(url, publishableKey, {
+    cookieOptions: sessionCookies,
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(cookiesToSet, headers) {
@@ -35,5 +42,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/workspace/:path*"],
+  matcher: ["/login", "/forgot-password", "/reset-password", "/workspace/:path*"],
 };
