@@ -1,6 +1,6 @@
 # SHIAP Booking Engine
 
-Fondasi aplikasi SaaS reservasi SHIAP. Aplikasi menggunakan Next.js App Router, TypeScript, Tailwind CSS, dan Supabase. Halaman awal memperkenalkan produk dan menyediakan tautan ke status layanan. Fitur pemesanan dan antarmuka masuk akun belum tersedia.
+SHIAP Booking Engine menggunakan Next.js App Router, TypeScript, Tailwind CSS, dan Supabase. Mitra masuk di `/login` untuk membuka `/workspace`. Fitur reservasi, pembayaran, dan manajemen properti belum tersedia.
 
 ## Pengembangan lokal
 
@@ -13,19 +13,21 @@ Fondasi aplikasi SaaS reservasi SHIAP. Aplikasi menggunakan Next.js App Router, 
 | --- | --- |
 | `npm run lint` | ESLint untuk kode aplikasi dan konfigurasi |
 | `npm run typecheck` | Tipe rute Next.js dan TypeScript strict |
-| `npm test` | Unit test kontrak endpoint health |
+| `npm test` | Unit test autentikasi, pemilihan tenant, dan kontrak endpoint health |
 | `npm run build` | Build production dan output standalone |
 
 `GET /api/health` mengembalikan HTTP 200 dengan `{"status":"ok","service":"shiap-booking-engine"}` dan `Cache-Control: no-store`. Pemeriksaan ini menguji ketersediaan proses aplikasi. Koneksi database dan Storage diperiksa terpisah saat memvalidasi integrasi Supabase.
 
 ## Supabase
 
-- Buat proyek Supabase khusus Booking Engine staging. Atur **Auth Site URL** ke `https://dev-booking.shiap.id`, tambahkan URL callback yang diperlukan saat alur masuk dibuat, dan nonaktifkan anonymous sign-in.
+- Gunakan proyek Supabase khusus Booking Engine staging. Atur **Auth Site URL** ke `https://dev-booking.shiap.id` dan izinkan redirect persis ke `https://dev-booking.shiap.id/auth/recovery`. Nonaktifkan signup publik dan anonymous sign-in.
+- Buat akun mitra melalui **Authentication → Users → Add user**. Administrator menautkan ID akun ke tenant melalui `tenant_members`. Role yang tersedia adalah `admin` dan `member`. Akses dashboard diperiksa dengan identitas server dan policy RLS pada setiap permintaan.
+- Reset kata sandi memakai tautan bawaan Supabase dan PKCE. Pengguna membuka tautan dalam browser yang sama, lalu menentukan kata sandi baru. Untuk mengirim email ke mitra di luar tim proyek Supabase, konfigurasikan custom SMTP yang telah disetujui untuk proyek tersebut.
 - Untuk pengembangan dengan Docker dan Supabase CLI, jalankan `supabase start` lalu `supabase db reset --local`. Ambil URL dan publishable key lokal dari `supabase status`.
 - Untuk staging, jalankan `supabase link --project-ref <ref-staging>`, periksa target dengan `supabase migration list --linked`, lalu jalankan `supabase db push --linked --dry-run` sebelum `supabase db push --linked`. Gunakan project ref staging pada setiap langkah yang menargetkan proyek cloud.
 - Migrasi membuat tabel `tenants` dan `tenant_members` dengan RLS. Pengguna terautentikasi hanya dapat membaca keanggotaan sendiri dan tenant yang diikutinya. Provisioning tenant dan keanggotaan dilakukan melalui akses administratif proyek.
 - Bucket privat `tenant-files` menggunakan jalur `<tenant_uuid>/<nama-berkas>`. Anggota dapat membaca berkas tenant sendiri. Admin tenant juga dapat membuat, memperbarui, dan menghapus berkas.
-- Client browser dan server tersedia di `src/lib/supabase`. Proxy memperbarui sesi cookie untuk rute di bawah `/workspace`. Saat rute workspace dibuat, periksa identitas pada server sebelum memberikan akses dan gunakan RLS untuk setiap operasi data tenant.
+- Proxy memperbarui sesi cookie untuk `/login` dan `/workspace`. Untuk memeriksa proteksi HTTP dan callback tanpa akun, atur `BOOKING_AUTH_TEST_ORIGIN` ke URL build yang sedang berjalan dan jalankan `node --test test/auth-http.test.mjs`.
 
 ## Branch dan GitHub Actions
 
