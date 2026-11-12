@@ -2,6 +2,10 @@ name: Staging
 
 on:
   workflow_call:
+    outputs:
+      artifact-id:
+        description: ID of the standalone artifact for this run
+        value: ${{ jobs.package.outputs.artifact-id }}
 
 permissions:
   contents: read
@@ -55,61 +59,3 @@ jobs:
             ${{ runner.temp }}/SHA256SUMS
           if-no-files-found: error
           retention-days: 7
-
-  deploy:
-    name: Deploy to cPanel
-    needs: package
-    if: >-
-      ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop'
-          && vars.STAGING_SSH_DEPLOY_ENABLED == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment:
-      name: staging
-      url: https://dev-booking.shiap.id
-    concurrency:
-      group: booking-engine-staging-ssh
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          artifact-ids: ${{ needs.package.outputs.artifact-id }}
-          path: ${{ runner.temp }}/staging-artifact
-      - name: Validate artifact
-        working-directory: ${{ runner.temp }}/staging-artifact
-        run: |
-          sha256sum --strict --check SHA256SUMS
-          python3 - <<'PY'
-          import pathlib
-          import tarfile
-
-          with tarfile.open("booking-engine.tar.gz", "r:gz") as archive:
-              members = {}
-              for item in archive:
-                  path = pathlib.PurePosixPath(item.name)
-                  assert not path.is_absolute() and ".." not in path.parts, path
-                  assert item.isfile() or item.isdir(), path
-                  assert path not in members, path
-                  assert not any(p.startswith(".env") or p.endswith((".pem", ".key")) for p in path.parts), path
-                  members[path] = item
-
-              for name in ("server.js", "package.json", ".next/BUILD_ID", "node_modules/next/package.json"):
-                  assert members[pathlib.PurePosixPath(name)].isfile(), name
-              assert any(
-                  str(path).startswith(".next/static/") and path.suffix == ".css" and item.isfile()
-                  for path, item in members.items()
-              ), "Standalone archive has no stylesheet"
-          PY
-      - name: Transfer and activate release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          STAGING_SSH_HOST: ${{ vars.STAGING_SSH_HOST }}
-          STAGING_SSH_PORT: ${{ vars.STAGING_SSH_PORT }}
-          STAGING_SSH_USER: ${{ vars.STAGING_SSH_USER }}
-          STAGING_SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
-          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
-          ROLLBACK_DRILL_SHA: ${{ vars.STAGING_ROLLBACK_DRILL_SHA }}
-        run: bash scripts/staging/transfer.sh
