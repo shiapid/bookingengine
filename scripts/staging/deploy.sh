@@ -35,12 +35,12 @@ restart() {
 }
 
 health() {
-  "$node" --input-type=module - "$domain" "$1" <<'NODE'
+  "$node" --input-type=module - "$domain" "$1" "$2" <<'NODE'
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 
-const [domain, expected] = process.argv.slice(2);
+const [domain, expected, expectedId] = process.argv.slice(2);
 const origin = new URL(`https://${domain}`);
 const request = async (url) => {
   const response = await fetch(url, {
@@ -59,6 +59,7 @@ async function check() {
   assert.match(health.headers.get("cache-control") ?? "", /(?:^|,)\s*no-store\s*(?:,|$)/i);
   assert.deepEqual(await health.json(), { status: "ok", service: "shiap-booking-engine" });
   assert.equal(health.headers.get("x-shiap-release"), expected || null);
+  assert.equal(health.headers.get("x-shiap-release-id"), expectedId || null);
 
   const page = await request(new URL(`/${nonce}`, origin));
   const html = await page.text();
@@ -72,12 +73,13 @@ async function check() {
   }
   const after = await request(new URL(`/api/health?deploy=${randomUUID()}`, origin));
   assert.equal(after.headers.get("x-shiap-release"), health.headers.get("x-shiap-release"));
+  assert.equal(after.headers.get("x-shiap-release-id"), health.headers.get("x-shiap-release-id"));
 }
 
 for (let attempt = 1; ; attempt++) {
   try {
     await check();
-    console.log(`HTTPS homepage, CSS and health passed (${expected || "existing release"})`);
+    console.log(`HTTPS homepage, CSS and health passed (${expectedId || "existing release"})`);
     break;
   } catch (error) {
     if (attempt === 8) throw error;
@@ -93,7 +95,8 @@ previous=$(sed -nE 's@^import\("\./(release-[0-9a-f-]+)/server\.js"\).*@\1@p' "$
 [[ $previous =~ ^release-([0-9a-f]{7}|[0-9a-f]{40}-[0-9]+-[0-9]+)$ ]]
 [[ -f "$app_root/$previous/server.js" && ! -L "$app_root/$previous" ]]
 previous_sha=$(sed -nE 's/^process\.env\.SHIAP_RELEASE_SHA = "([0-9a-f]{40})";$/\1/p' "$launcher")
-health "$previous_sha"
+previous_id=$(sed -nE 's/^process\.env\.SHIAP_RELEASE_ID = "(release-[0-9a-f-]+)";$/\1/p' "$launcher")
+health "$previous_sha" "$previous_id"
 
 backup=$(mktemp "$state/$run.XXXXXXXX.server.js")
 cp -p -- "$launcher" "$backup"
@@ -107,7 +110,7 @@ finish() {
   if (( changed )); then
     echo "Restoring $previous from ${backup##*/}"
     if cp -p -- "$backup" "$work/rollback.js" &&
-      mv -fT -- "$work/rollback.js" "$launcher" && restart && health "$previous_sha"; then
+      mv -fT -- "$work/rollback.js" "$launcher" && restart && health "$previous_sha" "$previous_id"; then
       echo "Rollback verified: $previous"
     else
       echo "ROLLBACK FAILED: inspect $log and restore $backup using cPanel" >&2
@@ -135,6 +138,7 @@ cat >"$work/launcher.js" <<EOF
 "use strict";
 
 process.env.SHIAP_RELEASE_SHA = "$sha";
+process.env.SHIAP_RELEASE_ID = "$release";
 import("./$release/server.js").catch((error) => {
   console.error("SHIAP Booking Engine startup failed", error);
   process.exitCode = 1;
@@ -146,7 +150,7 @@ changed=1
 mv -fT -- "$work/launcher.js" "$launcher"
 echo "Restarting Passenger for $release"
 restart
-health "$sha"
+health "$sha" "$release"
 
 if [[ $mode == rollback-drill ]]; then
   echo "Rollback drill: restoring the previous launcher after a healthy activation"

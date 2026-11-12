@@ -20,8 +20,10 @@ case $1 in
   -p) echo 24 ;;
   --input-type=module)
     expected=$4
+    expected_id=$5
     actual=$(sed -nE 's/^process\.env\.SHIAP_RELEASE_SHA = "([0-9a-f]{40})";$/\1/p' "$TEST_APP_ROOT/running.js")
-    [[ $expected == "$actual" && $expected != "${FAIL_RELEASE:-unassigned}" ]]
+    actual_id=$(sed -nE 's/^process\.env\.SHIAP_RELEASE_ID = "(release-[0-9a-f-]+)";$/\1/p' "$TEST_APP_ROOT/running.js")
+    [[ $expected == "$actual" && $expected_id == "$actual_id" && $expected != "${FAIL_RELEASE:-unassigned}" ]]
     ;;
   --check|-e) exit 0 ;;
   *) exit 1 ;;

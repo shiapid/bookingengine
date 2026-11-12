@@ -8,6 +8,11 @@ export function GET(): Response {
     headers.set("X-SHIAP-Release", release);
   }
 
+  const releaseId = process.env.SHIAP_RELEASE_ID;
+  if (releaseId && /^release-[0-9a-f]{40}-[0-9]+-[0-9]+$/.test(releaseId)) {
+    headers.set("X-SHIAP-Release-Id", releaseId);
+  }
+
   return Response.json(
     { status: "ok", service: "shiap-booking-engine" },
     { headers },
