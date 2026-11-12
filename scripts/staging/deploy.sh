@@ -25,7 +25,14 @@ mkdir -p -- "$state"
 exec 9>"$state/lock"
 flock -w 30 9
 log=$(mktemp "$state/$run.XXXXXXXX.log")
-exec > >(tee -p -a "$log" 9>&-) 2>&1
+# CageFS SSH sessions may lack /dev/fd, so log to a regular file.
+exec 3>&1
+exec >>"$log" 2>&1
+
+publish_log() {
+  cat -- "$log" >&3 || true
+}
+trap publish_log EXIT
 
 restart() {
   local output
@@ -118,6 +125,7 @@ finish() {
     fi
   fi
   rm -rf -- "$work"
+  publish_log
   exit "$status"
 }
 trap finish EXIT
