@@ -25,7 +25,7 @@ mkdir -p -- "$state"
 exec 9>"$state/lock"
 flock -w 30 9
 log=$(mktemp "$state/$run.XXXXXXXX.log")
-exec > >(tee -a "$log") 2>&1
+exec > >(tee -p -a "$log" 9>&-) 2>&1
 
 restart() {
   local output
@@ -58,7 +58,7 @@ async function check() {
   assert.match(health.headers.get("content-type") ?? "", /^application\/json\b/i);
   assert.match(health.headers.get("cache-control") ?? "", /(?:^|,)\s*no-store\s*(?:,|$)/i);
   assert.deepEqual(await health.json(), { status: "ok", service: "shiap-booking-engine" });
-  if (expected) assert.equal(health.headers.get("x-shiap-release"), expected);
+  assert.equal(health.headers.get("x-shiap-release"), expected || null);
 
   const page = await request(new URL(`/${nonce}`, origin));
   const html = await page.text();
