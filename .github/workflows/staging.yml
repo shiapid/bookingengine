@@ -1,0 +1,50 @@
+name: Staging
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: ${{ github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging
+      deployment: false
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate staging build settings
+        run: |
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo '::error::Set the staging Supabase URL'; exit 1; }
+          [[ "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" == sb_publishable_* ]] ||
+            { echo '::error::Set a staging Supabase publishable key'; exit 1; }
+      - run: npm ci
+      - run: npm run build
+      - name: Package standalone release
+        run: |
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+          if [[ -d public ]]; then
+            cp -a public .next/standalone/public
+          fi
+          test -f .next/standalone/server.js
+          tar -C .next/standalone -czf "${RUNNER_TEMP}/booking-engine.tar.gz" .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: booking-engine-staging-${{ github.sha }}
+          path: ${{ runner.temp }}/booking-engine.tar.gz
+          if-no-files-found: error
+          retention-days: 7

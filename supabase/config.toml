@@ -1,0 +1,5 @@
+project_id = "shiap-booking-engine"
+
+[auth]
+site_url = "http://localhost:3000"
+enable_anonymous_sign_ins = false

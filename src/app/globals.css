@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #00265e;
+  --color-blue: #2178f4;
+  --color-orange: #ff8316;
+  --color-page: #f5f8fc;
+  --color-action: #1559bf;
+  --font-sans: "Manrope Variable", sans-serif;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-navy);
+}
+
+a:focus-visible {
+  outline: 3px solid var(--color-action);
+  outline-offset: 5px;
+}
+
+.brand-mark {
+  display: grid;
+  flex: none;
+  width: 2.5rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: var(--color-navy);
+}
+
+.brand-mark span {
+  width: 1.05rem;
+  height: 0.62rem;
+  transform: rotate(-45deg) translateY(-0.13rem);
+  border-bottom: 0.2rem solid var(--color-orange);
+  border-left: 0.2rem solid var(--color-orange);
+}
+
+.calendar-illustration {
+  display: grid;
+  min-height: clamp(15rem, 34vw, 28rem);
+  place-items: center;
+  overflow: hidden;
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 85% 20%, #2178f4 0%, transparent 52%),
+    repeating-linear-gradient(135deg, #ffffff12 0 1px, transparent 1px 24px),
+    #00265e;
+}
+
+.calendar {
+  width: min(76%, 22rem);
+  padding: clamp(0.9rem, 3vw, 1.6rem);
+  transform: rotate(-7deg);
+  border: 1px solid #ffffff60;
+  border-radius: 1.25rem;
+  background: #f5f8fc;
+  box-shadow: 1.15rem 1.25rem 0 #021b4d5c;
+}
+
+.calendar-top {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+
+.calendar-top span {
+  width: 0.45rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #9abdea;
+}
+
+.calendar-top span:first-child {
+  background: var(--color-orange);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: clamp(0.2rem, 1vw, 0.45rem);
+}
+
+.calendar-grid span {
+  aspect-ratio: 1.15;
+  border-radius: 0.35rem;
+  background: #e4eefc;
+}
+
+.calendar-grid span:nth-child(3),
+.calendar-grid span:nth-child(10),
+.calendar-grid span:nth-child(11),
+.calendar-grid span:nth-child(18) {
+  background: #b9d7ff;
+}
+
+.calendar-grid span:nth-child(11) {
+  background: var(--color-blue);
+}
+
+.calendar-grid span:nth-child(17) {
+  background: var(--color-orange);
+}
