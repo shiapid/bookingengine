@@ -35,7 +35,7 @@ Fondasi aplikasi SaaS reservasi SHIAP. Aplikasi menggunakan Next.js App Router, 
 | `develop` | Staging |
 | `feature/*` | Pengembangan fitur melalui pull request |
 
-Workflow [CI](.github/workflows/ci.yml) menjalankan install, lint, typecheck, unit test, dan build pada push yang sesuai dan PR ke `main` atau `develop`. Setelah CI lulus pada push atau dispatch dari `develop`, workflow [Staging](.github/workflows/staging.yml) dapat membangun artefak di GitHub Environment `staging`. Workflow ini menyiapkan artefak saja selama audit cPanel menunggu konfigurasi.
+Workflow [CI](.github/workflows/ci.yml) menjalankan install, lint, typecheck, unit test, simulasi rollback, dan build pada push yang sesuai serta PR ke `main` atau `develop`. Setelah CI lulus pada push atau dispatch dari `develop`, workflow [Staging](.github/workflows/staging.yml) dapat membangun artefak di GitHub Environment `staging`. Deployment SSH hanya berjalan dari event push ke `develop` ketika `STAGING_SSH_DEPLOY_ENABLED=true`.
 
 Untuk menjalankan pengemasan, buat Environment `staging`, batasi branch deployment ke `develop`, dan isi dua **environment variables** berikut. Setelah keduanya tersedia, atur **repository variable** `STAGING_PACKAGE_ENABLED=true`.
 
@@ -46,22 +46,28 @@ Untuk menjalankan pengemasan, buat Environment `staging`, batasi branch deployme
 
 Kedua nilai publik dibaca pada waktu build karena Next.js menyematkan `NEXT_PUBLIC_*` ke bundle. Build standalone menyertakan `server.js`, `.next/static`, dan `public` jika tersedia. Arsip berisi satu rilis yang dibangun dari SHA Git yang sama dengan CI.
 
-## Audit cPanel dan aktivasi deployment
+## Deployment staging di cPanel
 
-Salin nilai nonrahasia dari **Setup Node.js App** untuk staging dan, jika tersedia, untuk referensi aplikasi utama secara read-only.
+CloudLinux Setup Node.js App memakai Node.js 24.22.3, mode **Production**, dan startup file `server.js` di `/home/shiapsit/bookingengine-staging`. Rilis manual pertama berada di `release-6bc972e`. Launcher CommonJS di application root memanggil `import("./release-6bc972e/server.js")`, sehingga Passenger tetap memuat CommonJS dan Next.js menjalankan entry point ESM di dalam rilis. `server.placeholder.js` menyimpan halaman bawaan cPanel dan bukan salinan rilis Booking Engine.
 
-| Yang perlu diverifikasi | Detail |
+Job deploy mengambil artefak berdasarkan ID dari job package pada run yang sama. Runner memeriksa SHA-256, jalur dan tipe entri tar, serta file yang diperlukan. [Skrip transfer](scripts/staging/transfer.sh) memakai SSH dengan host key pinning. [Skrip server](scripts/staging/deploy.sh) memeriksa checksum ulang, menyimpan salinan launcher saat ini, lalu mengekstrak rilis ke `release-<sha>-<run>-<attempt>`. Hanya launcher CommonJS baru yang dipindah atomik ke `server.js`. Application root dan direktori rilis adalah direktori biasa. Aplikasi menggunakan aset dan dependency dari rilisnya sendiri.
+
+Setelah pergantian launcher, skrip memanggil restart Node.js Selector dan memeriksa HTTPS homepage, stylesheet, serta health JSON. Header `X-SHIAP-Release` membuktikan SHA yang disajikan Passenger, dan `X-SHIAP-Release-Id` membedakan percobaan deployment untuk SHA yang sama. Jika restart atau pemeriksaan gagal, skrip mengembalikan launcher lama secara atomik, restart lagi, dan mengulangi pemeriksaan. Rilis lama dipertahankan. Log dan backup launcher disimpan di `/home/shiapsit/bookingengine-staging/.deploy`. Jika rollback otomatis gagal, pulihkan backup yang disebut di log menjadi `server.js` melalui File Manager, gunakan **Restart** pada aplikasi staging, dan periksa HTTPS lagi.
+
+| Pengaturan GitHub | Nama dan nilai |
 | --- | --- |
-| Runtime | Versi Node.js yang tersedia, versi Node.js dan Next.js aplikasi referensi, arsitektur Linux, dan kompatibilitas native dependency dengan runner Ubuntu |
-| Node.js App | Application root absolut, application URL, startup file, mode production, env yang dibutuhkan, dan cara Passenger menangani host serta port |
-| Build dan restart | Output aplikasi referensi, dukungan untuk menjalankan `server.js` standalone, perintah restart yang didukung provider, dan lokasi log |
-| SSH | Host, port, pengguna deploy staging, public host key terverifikasi, akses dari runner GitHub, serta izin untuk menulis rilis dan restart aplikasi |
-| Subdomain | DNS, sertifikat HTTPS, document root, dan pemetaan `dev-booking.shiap.id` ke aplikasi staging |
-| Pergantian rilis | Direktori rilis yang terpisah dan dukungan application root stabil dengan pengalihan atomik atau mekanisme setara dari provider |
+| Environment `staging` variables | `STAGING_SSH_HOST` untuk origin SSH hosting, `STAGING_SSH_PORT` untuk port SSH provider, `STAGING_SSH_USER=shiapsit` |
+| Environment `staging` secrets | `STAGING_SSH_PRIVATE_KEY` khusus pipeline ini dan `STAGING_SSH_KNOWN_HOSTS` berisi entri OpenSSH dari host key yang sudah diverifikasi |
+| Repository variables | `STAGING_PACKAGE_ENABLED=true` dan `STAGING_SSH_DEPLOY_ENABLED=true` setelah akses dan restart SSH teruji |
+| Repository variable opsional | `STAGING_ROLLBACK_DRILL_SHA`, kosong untuk operasi normal |
 
-Setelah metode hosting terverifikasi, pipeline SSH membutuhkan GitHub Environment secret `STAGING_SSH_PRIVATE_KEY`. Simpan host, port, user, application root, dan public host key terverifikasi sebagai konfigurasi environment. Untuk migrasi Supabase manual, gunakan autentikasi CLI dan kata sandi database proyek staging melalui mekanisme kredensial Supabase. Workflow pengemasan saat ini tidak memerlukan secret GitHub.
+Sebelum mengaktifkan deployment, otorisasi hanya public key baru di cPanel. Cocokkan fingerprint SSH dengan data dari provider atau host key yang dibaca lewat sesi administrasi yang sudah dipercaya. Untuk port nonstandar, entri known_hosts memakai bentuk `[host]:port`. Uji login noninteraktif, akses tulis pada root staging, Node.js pada `/home/shiapsit/nodevenv/bookingengine-staging/24/bin/node`, dan perintah berikut. Perintah harus mengembalikan JSON dengan `"result":"success"`, lalu staging harus lolos pemeriksaan HTTPS.
 
-Urutan rilis yang akan digunakan setelah audit adalah transfer ke direktori rilis baru, aktivasi atomik, restart aplikasi staging, lalu verifikasi HTTPS dan isi respons `/api/health`. Jika pemeriksaan gagal, aktifkan kembali rilis sebelumnya, restart, dan verifikasi ulang. Deployment staging menggunakan proses production sesuai konfigurasi cPanel.
+```sh
+cloudlinux-selector restart --json --interpreter nodejs --domain dev-booking.shiap.id --app-root bookingengine-staging
+```
+
+Untuk latihan rollback, setelah deployment pertama lulus, set `STAGING_ROLLBACK_DRILL_SHA` ke SHA penuh terbaru di `develop` dan pilih **Re-run all jobs** pada run push SHA tersebut. Pipeline menguji rilis kandidat yang sehat, lalu memicu jalur rollback dengan sengaja. Job harus gagal dengan log `Rollback verified` dan staging tetap sehat. Hapus variabel latihan setelah hasil diverifikasi.
 
 ## Dokumentasi
 
